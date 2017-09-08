@@ -1,31 +1,74 @@
 #!/usr/bin/env python
 
 from Tkinter import *
-from os import putenv, getenv, system
+from os import putenv, getenv, system, remove
+from os.path import dirname, abspath,realpath
 from PIL import Image, ImageTk 
 from glob import glob
 
-dropbox_link = getenv("DROPBOX_LINK")
-download_interval = int(getenv("DOWNLOAD_INTERVAL_HOURS")) * 60 * 60 * 1000
-carousel_interval = int(getenv("CAROUSEL_INTERVAL_SECONDS")) * 1000
+from time import sleep, strftime
+import datetime
+import urllib2
+import inspect
+
+
+import errno
+import sys
+
+#dropbox_link = getenv("DROPBOX_LINK")
+#download_interval = int(getenv("DOWNLOAD_INTERVAL_HOURS")) * 60 * 60 * 1000
+#carousel_interval = int(getenv("CAROUSEL_INTERVAL_SECONDS")) * 1000
 frame_owner = getenv("FRAME_OWNER")
 ifttt_key = getenv("IFTTT_KEY")
 
-base_path = "/usr/src/app/images/"
+dropbox_link = "https://www.dropbox.com/sh/n5bo8z52lqm2eov/AAAC3ylCk86jT85L0s-D_CwGa?dl=1"
+download_interval = 1 * 60 * 60 * 1000
+carousel_interval = 20 * 1000
+
+script_path = dirname(realpath(__file__))
+image_path = script_path + "/images"
+icon_path = script_path + "/icons"
+
 carrousel_status = True
 image_index = 0
 image_list = []
 initial_init = True
 
+
+def debugPrint(msg,logLevel=3,logFileName=script_path + "/ConnectedFrame.log"):
+
+	maxLogLevel=9
+    
+	if logLevel<=maxLogLevel:
+        
+		fullMsg  = strftime("%X-%d/%m/%Y")
+		fullMsg += "|"
+		fullMsg += inspect.stack()[1][3]
+		fullMsg += "|"
+		fullMsg += str(logLevel)
+		fullMsg += "|"
+		fullMsg += msg
+      
+		with open(logFileName,'a') as logFile:
+			logFile.write(fullMsg + '\n')
+			logFile.close()
+
 def download_images(url):
-	archive = base_path + "temp.zip"
+	archive = image_path + "/temp.zip"
 
-	remove = "sudo rm -rf " + base_path + "*"
 	download = "wget -q  "+ url + " -O " + archive
-	extract = "unzip -o " + archive + " -d " + base_path
+	extract = "unzip -o " + archive + " -d " + image_path
 
-	system(remove)
+	try:
+		remove(image_path + "/*")
+	except OSError as e: 
+		if e.errno != errno.ENOENT: # errno.ENOENT = no such file or directory
+			raise # re-raise exception if a different error occurred
+
+
+	debugPrint("Downloading photos...")
 	system(download)
+	debugPrint("Extracting photos...")
 	system(extract)
 
 def resize_images():
@@ -39,9 +82,11 @@ def resize_images():
 def list_images():
 	images = []
 
-	dir = base_path + "*.jpg"
+	dir = image_path + "/*.JPG"
+	debugPrint("glob:"+dir)
 
 	images = glob(dir)
+	debugPrint(','.join(images))
 
 	return images
 
@@ -73,9 +118,9 @@ def play_pause():
 	carrousel_status = not carrousel_status
 
 	if(carrousel_status):
-		img = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/pause.png"))
+		img = ImageTk.PhotoImage(Image.open(icon_path + "/pause.png"))
 	else:
-		img = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/play.png"))
+		img = ImageTk.PhotoImage(Image.open(icon_path + "/play.png"))
 	
 	play_button.configure(image=img)
 	play_button.image = img
@@ -91,7 +136,7 @@ def update_image(image_path):
 	center_label.configure(image=img)
 	center_label.image = img
 
-	img = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/like.png"))
+	img = ImageTk.PhotoImage(Image.open(icon_path + "/like.png"))
 	like_button.configure(image=img)
 	like_button.image = img
 
@@ -113,13 +158,16 @@ def initialize():
 		root.after(download_interval, initialize)
 
 def send_event():
-	img = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/liked.png"))
+	img = ImageTk.PhotoImage(Image.open(icon_path + "/liked.png"))
 	like_button.configure(image=img)
 	like_button.image = img
 
 	command = "curl -X POST -H \"Content-Type: application/json\" -d '{\"value1\":\"" + frame_owner + "\",\"value2\":\"" + image_list[image_index] + "\"}' https://maker.ifttt.com/trigger/connectedframe_like/with/key/" + ifttt_key
 
 	system(command)
+
+
+debugPrint("Starting...")
 
 root = Tk()
 root.title('Connected Frame')
@@ -141,10 +189,10 @@ left_column.grid(row=0, column=0, sticky="nsew")
 center_column.grid(row=0, column=1, sticky="nsew")
 right_column.grid(row=0, column=2, sticky="nsew")
 
-next_icon = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/next.png"))
-previous_icon = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/previous.png"))
-play_icon = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/pause.png"))
-like_icon = ImageTk.PhotoImage(Image.open("/usr/src/app/icons/like.png"))
+next_icon = ImageTk.PhotoImage(Image.open(icon_path + "/next.png"))
+previous_icon = ImageTk.PhotoImage(Image.open(icon_path + "/previous.png"))
+play_icon = ImageTk.PhotoImage(Image.open(icon_path + "/pause.png"))
+like_icon = ImageTk.PhotoImage(Image.open(icon_path + "/like.png"))
 
 previous_button = Button(left_column, image=previous_icon, borderwidth=0, background="black", foreground="white", activebackground="black", activeforeground="white", highlightthickness=0, command=previous_image)
 next_button = Button(left_column, image=next_icon, borderwidth=0, background="black", foreground="white", activebackground="black", activeforeground="white", highlightthickness=0, command=next_image)
